@@ -801,6 +801,81 @@ fn is_leading_utf8_byte(b: u8) -> bool {
     (b & 0b1100_0000) != 0b1000_0000
 }
 
+#[derive(Hash, PartialEq, Eq, Ord, PartialOrd, Clone)]
+///a char or 1-3 bytes of invalid ut8.
+///This is yielded by the `charsOrRaws` iterator which can be created via the ByteSlice::utf8_chunks method.
+///The 'a lifetime parameter corresponds to the lifetime of the bytes that are being iterated over.
+pub enum CharOrRaw<'a> {
+    Char(char),
+    Raw(&'a [u8]),
+}
+
+#[derive(Clone)]
+///a iterator over a char or raw invalid utf8
+pub struct CharsOrRaws<'a> {
+    bs: &'a [u8],
+    forward_index: usize,
+    reverse_index: usize,
+}
+
+impl<'a> CharsOrRaws<'a> {
+    pub(crate) fn new(bs: &'a [u8]) -> CharsOrRaws<'a> {
+        CharsOrRaws { bs, forward_index: 0, reverse_index: bs.len() }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.bs
+    }
+}
+
+impl<'a> Iterator for CharsOrRaws<'a> {
+    type Item = CharOrRaw<'a>;
+
+    #[inline]
+    fn next(&mut self) -> Option<CharOrRaw<'a>> {
+        let index = self.forward_index;
+        let (ch, size) = decode(self.bs);
+        if size == 0 {
+            return None;
+        }
+
+        let resault = match ch {
+            Some(ch) => Some(CharOrRaw::Char(ch)),
+            None => {
+                Some(CharOrRaw::Raw(&self.bs[index..index + size]))
+            },
+        };
+
+        self.bs = &self.bs[size..];
+        self.forward_index += size;
+
+        resault
+    }
+}
+
+impl<'a> DoubleEndedIterator for CharsOrRaws<'a> {
+    #[inline]
+    fn next_back(&mut self) -> Option<CharOrRaw<'a>> {
+        let (ch, size) = decode_last(self.bs);
+        if size == 0 {
+            return None;
+        }
+
+        let resault = match ch {
+            Some(ch) => Some(CharOrRaw::Char(ch)),
+            None => {
+                Some(CharOrRaw::Raw(&self.bs[self.bs.len() - size..]))
+            }
+        };
+
+        self.bs = &self.bs[..self.bs.len() - size];
+        self.reverse_index -= size;
+
+        resault
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::char;

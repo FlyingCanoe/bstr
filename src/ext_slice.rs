@@ -25,7 +25,7 @@ use unicode::{
     SentenceIndices, Sentences, WordIndices, Words, WordsWithBreakIndices,
     WordsWithBreaks,
 };
-use utf8::{self, CharIndices, Chars, Utf8Chunks, Utf8Error};
+use utf8::{self, CharIndices, Chars, Utf8Chunks, Utf8Error, CharsOrRaws};
 
 /// A short-hand constructor for building a `&[u8]`.
 ///
@@ -1702,6 +1702,13 @@ pub trait ByteSlice: Sealed {
     #[inline]
     fn char_indices(&self) -> CharIndices {
         CharIndices::new(self.as_bytes())
+    }
+
+    /// Iterate over the char in the slice or, when invalid ut8 is encounter a 1-3 bytes wide slice,
+    /// which are determined via "substitution of maximal subpart" strategy described in the docs for the
+    /// `ByteSlice::to_str_lossy` method.
+    fn chars_or_raws(&self) -> CharsOrRaws {
+        CharsOrRaws::new(self.as_bytes())
     }
 
     /// Iterate over chunks of valid UTF-8.
