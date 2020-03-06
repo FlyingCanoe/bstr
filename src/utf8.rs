@@ -843,6 +843,7 @@ impl<'a> Iterator for CharsOrRaws<'a> {
         let resault = match ch {
             Some(ch) => Some(CharOrRaw::Char(ch)),
             None => {
+                debug_assert!(self.bs.len() >= index + size);
                 Some(CharOrRaw::Raw(&self.bs[index..index + size]))
             },
         };
