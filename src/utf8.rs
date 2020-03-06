@@ -847,7 +847,6 @@ impl<'a> Iterator for CharsOrRaws<'a> {
                     println!("b len {}", self.bs.len());
                     println!("b index {}", index);
                     println!("b size {}", size);
-                    panic!();
                 }
                 Some(CharOrRaw::Raw(&self.bs[index..index + size]))
             },
