@@ -839,9 +839,7 @@ impl<'a> Iterator for CharsOrRaws<'a> {
 
         let resault = match ch {
             Some(ch) => Some(CharOrRaw::Char(ch)),
-            None => {
-                Some(CharOrRaw::Raw(&self.bs[..size]))
-            },
+            None => Some(CharOrRaw::Raw(&self.bs[..size])),
         };
 
         self.bs = &self.bs[size..];
@@ -860,13 +858,10 @@ impl<'a> DoubleEndedIterator for CharsOrRaws<'a> {
 
         let resault = match ch {
             Some(ch) => Some(CharOrRaw::Char(ch)),
-            None => {
-                Some(CharOrRaw::Raw(&self.bs[self.bs.len() - size..]))
-            }
+            None => Some(CharOrRaw::Raw(&self.bs[self.bs.len() - size..])),
         };
 
         self.bs = &self.bs[..self.bs.len() - size];
-        self.reverse_index -= size;
 
         resault
     }
