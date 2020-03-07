@@ -814,13 +814,11 @@ pub enum CharOrRaw<'a> {
 ///a iterator over a char or raw invalid utf8
 pub struct CharsOrRaws<'a> {
     bs: &'a [u8],
-    forward_index: usize,
-    reverse_index: usize,
 }
 
 impl<'a> CharsOrRaws<'a> {
     pub(crate) fn new(bs: &'a [u8]) -> CharsOrRaws<'a> {
-        CharsOrRaws { bs, forward_index: 0, reverse_index: bs.len() }
+        CharsOrRaws { bs }
     }
 
     #[inline]
@@ -834,7 +832,6 @@ impl<'a> Iterator for CharsOrRaws<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<CharOrRaw<'a>> {
-        let index = self.forward_index;
         let (ch, size) = decode(self.bs);
         if size == 0 {
             return None;
@@ -843,17 +840,11 @@ impl<'a> Iterator for CharsOrRaws<'a> {
         let resault = match ch {
             Some(ch) => Some(CharOrRaw::Char(ch)),
             None => {
-                if self.bs.len() < index + size {
-                    println!("b len {}", self.bs.len());
-                    println!("b index {}", index);
-                    println!("b size {}", size);
-                }
-                Some(CharOrRaw::Raw(&self.bs[index..index + size]))
+                Some(CharOrRaw::Raw(&self.bs[..size]))
             },
         };
 
         self.bs = &self.bs[size..];
-        self.forward_index += size;
 
         resault
     }
