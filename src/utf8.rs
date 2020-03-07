@@ -843,7 +843,7 @@ impl<'a> Iterator for CharsOrRaws<'a> {
         let resault = match ch {
             Some(ch) => Some(CharOrRaw::Char(ch)),
             None => {
-                if self.bs.len() >= index + size {
+                if self.bs.len() < index + size {
                     println!("b len {}", self.bs.len());
                     println!("b index {}", index);
                     println!("b size {}", size);
