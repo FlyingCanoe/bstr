@@ -2,6 +2,7 @@ use core::char;
 use core::cmp;
 use core::fmt;
 use core::str;
+use core::iter;
 #[cfg(feature = "std")]
 use std::error;
 
@@ -43,7 +44,7 @@ const ACCEPT: usize = 12;
 const REJECT: usize = 0;
 
 #[cfg_attr(rustfmt, rustfmt::skip)]
-static CLASSES: [u8; 256] = [
+const CLASSES: [u8; 256] = [
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -55,7 +56,7 @@ static CLASSES: [u8; 256] = [
 ];
 
 #[cfg_attr(rustfmt, rustfmt::skip)]
-static STATES_FORWARD: &'static [u8] = &[
+const STATES_FORWARD: &'static [u8] = &[
   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
   12, 0, 24, 36, 60, 96, 84, 0, 0, 0, 48, 72,
   0, 12, 0, 0, 0, 0, 0, 12, 0, 12, 0, 0,
@@ -589,6 +590,34 @@ pub fn decode<B: AsRef<[u8]>>(slice: B) -> (Option<char>, usize) {
     let (mut state, mut cp, mut i) = (ACCEPT, 0, 0);
     while i < slice.len() {
         decode_step(&mut state, &mut cp, slice[i]);
+        i += 1;
+
+        if state == ACCEPT {
+            // SAFETY: This is safe because `decode_step` guarantees that
+            // `cp` is a valid Unicode scalar value in an ACCEPT state.
+            let ch = unsafe { char::from_u32_unchecked(cp) };
+            return (Some(ch), i);
+        } else if state == REJECT {
+            // At this point, we always want to advance at least one byte.
+            return (None, cmp::max(1, i.saturating_sub(1)));
+        }
+    }
+    (None, i)
+}
+
+#[inline]
+pub fn decode_iterator<B>(iter: &mut B) -> (Option<char>, usize)
+    where B: Iterator<Item = u8>,
+     {
+    match iter.next() {
+        None => return (None, 0),
+        Some(b) if b <= 0x7F => return (Some(b as char), 1),
+        _ => {}
+    }
+
+    let (mut state, mut cp, mut i) = (ACCEPT, 0, 0);
+    while let Some(value) = iter.next() {
+        decode_step(&mut state, &mut cp, value);
         i += 1;
 
         if state == ACCEPT {
