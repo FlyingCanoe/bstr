@@ -2,7 +2,6 @@ use core::char;
 use core::cmp;
 use core::fmt;
 use core::str;
-use core::iter;
 #[cfg(feature = "std")]
 use std::error;
 
@@ -606,31 +605,33 @@ pub fn decode<B: AsRef<[u8]>>(slice: B) -> (Option<char>, usize) {
 }
 
 #[inline]
-pub fn decode_iterator<B>(iter: &mut B) -> (Option<char>, usize)
+pub fn decode_iterator<B>(iter: &mut B) -> Option<CharOrRaw>
     where B: Iterator<Item = u8>,
      {
-    match iter.next() {
-        None => return (None, 0),
-        Some(b) if b <= 0x7F => return (Some(b as char), 1),
-        _ => {}
-    }
+    let mut chache: Vec<u8> = Vec::with_capacity(3);
+    chache.push(match iter.next() {
+        None => return None,
+        Some(b) if b <= 0x7F => return Some(CharOrRaw::Char(b as char)),
+        Some(b) => {b}
+    });
 
-    let (mut state, mut cp, mut i) = (ACCEPT, 0, 0);
+    let (mut state, mut cp) = (ACCEPT, 0);
+    decode_step(&mut state, &mut cp, chache[0]);
     while let Some(value) = iter.next() {
+        chache.push(value);
         decode_step(&mut state, &mut cp, value);
-        i += 1;
 
         if state == ACCEPT {
             // SAFETY: This is safe because `decode_step` guarantees that
             // `cp` is a valid Unicode scalar value in an ACCEPT state.
             let ch = unsafe { char::from_u32_unchecked(cp) };
-            return (Some(ch), i);
+            return Some(CharOrRaw::Char(ch));
         } else if state == REJECT {
             // At this point, we always want to advance at least one byte.
-            return (None, cmp::max(1, i.saturating_sub(1)));
+            return Some(CharOrRaw::Raw(chache.into_boxed_slice()));
         }
     }
-    (None, i)
+    None
 }
 
 /// Lossily UTF-8 decode a single Unicode scalar value from the beginning of a
@@ -834,65 +835,34 @@ fn is_leading_utf8_byte(b: u8) -> bool {
 ///a char or 1-3 bytes of invalid ut8.
 ///This is yielded by the `charsOrRaws` iterator which can be created via the ByteSlice::utf8_chunks method.
 ///The 'a lifetime parameter corresponds to the lifetime of the bytes that are being iterated over.
-pub enum CharOrRaw<'a> {
+pub enum CharOrRaw {
     Char(char),
-    Raw(&'a [u8]),
+    Raw(Box<[u8]>),
 }
 
 #[derive(Clone)]
 ///a iterator over a char or raw invalid utf8
-pub struct CharsOrRaws<'a> {
-    bs: &'a [u8],
+pub struct CharsOrRaws<I: Iterator<Item = u8>> {
+    base: I,
 }
 
-impl<'a> CharsOrRaws<'a> {
-    pub(crate) fn new(bs: &'a [u8]) -> CharsOrRaws<'a> {
-        CharsOrRaws { bs }
+impl<I: Iterator<Item = u8>> CharsOrRaws<I> {
+    pub(crate) fn new(base: I) -> CharsOrRaws<I> {
+        CharsOrRaws { base }
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &'a [u8] {
-        self.bs
+    pub fn as_bytes_iterator(self) -> I {
+        self.base
     }
 }
 
-impl<'a> Iterator for CharsOrRaws<'a> {
-    type Item = CharOrRaw<'a>;
+impl<B: Iterator<Item = u8>> Iterator for CharsOrRaws<B> {
+    type Item = CharOrRaw;
 
     #[inline]
-    fn next(&mut self) -> Option<CharOrRaw<'a>> {
-        let (ch, size) = decode(self.bs);
-        if size == 0 {
-            return None;
-        }
-
-        let resault = match ch {
-            Some(ch) => Some(CharOrRaw::Char(ch)),
-            None => Some(CharOrRaw::Raw(&self.bs[..size])),
-        };
-
-        self.bs = &self.bs[size..];
-
-        resault
-    }
-}
-
-impl<'a> DoubleEndedIterator for CharsOrRaws<'a> {
-    #[inline]
-    fn next_back(&mut self) -> Option<CharOrRaw<'a>> {
-        let (ch, size) = decode_last(self.bs);
-        if size == 0 {
-            return None;
-        }
-
-        let resault = match ch {
-            Some(ch) => Some(CharOrRaw::Char(ch)),
-            None => Some(CharOrRaw::Raw(&self.bs[self.bs.len() - size..])),
-        };
-
-        self.bs = &self.bs[..self.bs.len() - size];
-
-        resault
+    fn next(&mut self) -> Option<CharOrRaw> {
+        return decode_iterator(&mut self.base)
     }
 }
 

@@ -1704,13 +1704,6 @@ pub trait ByteSlice: Sealed {
         CharIndices::new(self.as_bytes())
     }
 
-    /// Iterate over the char in the slice or, when invalid ut8 is encounter a 1-3 bytes wide slice,
-    /// which are determined via "substitution of maximal subpart" strategy described in the docs for the
-    /// `ByteSlice::to_str_lossy` method.
-    fn chars_or_raws(&self) -> CharsOrRaws {
-        CharsOrRaws::new(self.as_bytes())
-    }
-
     /// Iterate over chunks of valid UTF-8.
     ///
     /// The iterator returned yields chunks of valid UTF-8 separated by invalid
@@ -3615,6 +3608,13 @@ impl<'a> Iterator for LinesWithTerminator<'a> {
             }
         }
     }
+}
+
+/// Iterate over the char in the slice or, when invalid ut8 is encounter a 1-3 bytes wide slice,
+/// which are determined via "substitution of maximal subpart" strategy described in the docs for the
+/// `ByteSlice::to_str_lossy` method.
+pub fn chars_or_raws<I: Iterator<Item=u8>>(iterator: I) -> CharsOrRaws<I> {
+    CharsOrRaws::new(iterator)
 }
 
 #[cfg(test)]
