@@ -847,7 +847,7 @@ pub struct CharsOrRaws<I: Iterator<Item = u8>> {
 }
 
 impl<I: Iterator<Item = u8>> CharsOrRaws<I> {
-    pub(crate) fn new(base: I) -> CharsOrRaws<I> {
+    pub fn new(base: I) -> CharsOrRaws<I> {
         CharsOrRaws { base }
     }
 
